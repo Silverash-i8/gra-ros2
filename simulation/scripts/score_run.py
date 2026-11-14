@@ -5,7 +5,9 @@ usage: score_run.py EVENT run.csv [--json] [--tracks DIR]
        EVENT: acceleration | skidpad | autocross | trackdrive | mppi_track
 
 What is measured
-  contacts   cones the car's footprint came closer than CONTACT m (0.12) to. The footprint is the body and the
+  contacts   number of different cones the car's footprint came closer than CONTACT m (0.12) to ("cones touched").
+  touches    number of separate touches: a cone touched on three laps counts three times (touches of the same
+             cone less than TOUCH_GAP s (2) apart are one touch). The footprint is the body and the
              four wheels as rectangles in base_link; the cone is its true position in the track .sdf (every
              colour, also the *_gap_after_* and *_fill_* cones). A cone knocked earlier is still judged where it
              stood. 0.12 m is about the half-width of a cone's base, so a contact is the car reaching the cone.
@@ -27,6 +29,7 @@ import numpy as np
 TRACK = {'acceleration': 'acceleration', 'skidpad': 'skidpad', 'autocross': 'drive1',
          'trackdrive': 'track_small', 'mppi_track': 'mppi_track'}
 CONTACT = 0.12
+TOUCH_GAP = 2.0
 # body, front-left, front-right, rear-left, rear-right wheel: (x0, x1, y0, y1) in base_link (ads_dv.xacro)
 FOOTPRINT = [(-1.175, 1.175, -0.245, 0.245), (0.5095, 1.0245, 0.374, 0.57), (0.5095, 1.0245, -0.57, -0.374),
              (-1.0245, -0.5095, 0.47, 0.668), (-1.0245, -0.5095, -0.668, -0.47)]
@@ -79,13 +82,15 @@ def score(event, run_csv, tracks_dir=DEFAULT_TRACKS):
     d = d[np.abs(d['v']) < 30]                               # spawn transient
     x, y, yaw, v, t = d['x'], d['y'], d['yaw'], d['v'], d['t']
     cones = load_cones(event, tracks_dir)
-    passes = []                                               # (clearance, name, time since start)
+    passes = []                                               # (clearance, name, time since start, touches)
     for name, c in cones.items():
         near = np.hypot(x - c[0], y - c[1]) < 3.0
         if near.any():
             cl = clearance(c, x[near], y[near], yaw[near])
             i = int(cl.argmin())
-            passes.append((float(cl[i]), name, float(t[near][i] - t[0])))
+            t_touch = t[near][cl < CONTACT]
+            n_touch = int(1 + np.sum(np.diff(t_touch) > TOUCH_GAP)) if len(t_touch) else 0
+            passes.append((float(cl[i]), name, float(t[near][i] - t[0]), n_touch))
     passes.sort()
     moving = v > 0.3
     laps = int(d['laps'].max())
@@ -111,9 +116,10 @@ def score(event, run_csv, tracks_dir=DEFAULT_TRACKS):
         lap_times=[round(b - a, 1) for a, b in zip([t_go] + lap_end[:-1], lap_end)],
         vmax=round(float(v.max()), 1), vmean=round(float(v[moving].mean()), 1) if moving.any() else 0.0,
         contacts=sum(p[0] < CONTACT for p in passes),
+        touches=sum(p[3] for p in passes),
         closest=round(passes[0][0], 2) if passes else None,
-        hit=[(n, round(c, 2), round(ts)) for c, n, ts in passes if c < CONTACT],
-        near=[(n, round(c, 2)) for c, n, ts in passes[:3]],
+        hit=[(n, round(c, 2), round(ts), k) for c, n, ts, k in passes if c < CONTACT],   # name, closest, time, touches
+        near=[(n, round(c, 2)) for c, n, ts, k in passes[:3]],
         off_centre=off, slam_error=slam_error(run_csv, t, x, y, yaw, d['laps']),
         start_gap=round(float(min(np.hypot(x[0] - c[0], y[0] - c[1]) for c in cones.values())), 2))
 
