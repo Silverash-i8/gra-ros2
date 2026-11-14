@@ -34,6 +34,7 @@ from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 from common_msgs.msg import ConeArray, Cone
 from ament_index_python.packages import get_package_share_directory
+from fsai_common.geometry import yaw_from_quaternion
 
 import pycuda.driver as cuda
 import pycuda.autoinit  # noqa: F401
@@ -205,12 +206,6 @@ def check_and_memcpy_dtoh(host_arr, dev_ptr, name=""):
         print_gpu_stats(f"DTOH {name}")
     except Exception as e:
         raise RuntimeError(f"memcpy_dtoh failed for {name}: {e}")
-
-
-def quaternion_to_yaw(qx, qy, qz, qw):
-    siny_cosp = 2.0 * (qw * qz + qx * qy)
-    cosy_cosp = 1.0 - 2.0 * (qy * qy + qz * qz)
-    return math.atan2(siny_cosp, cosy_cosp)
 
 
 def yaw_to_quaternion(yaw: float) -> Quaternion:
@@ -786,7 +781,7 @@ class FastSLAMNode(Node):
         rx = float(odom_msg.pose.pose.position.x)
         ry = float(odom_msg.pose.pose.position.y)
         rq = odom_msg.pose.pose.orientation
-        r_yaw = quaternion_to_yaw(rq.x, rq.y, rq.z, rq.w)
+        r_yaw = yaw_from_quaternion(rq)
 
         # Measurements.
         measurements_rb = self._process_cones(cone_array_msg, rx, ry, r_yaw)
@@ -1086,7 +1081,7 @@ class FastSLAMNode(Node):
         odom_x = float(odom_msg.pose.pose.position.x)
         odom_y = float(odom_msg.pose.pose.position.y)
         odom_q = odom_msg.pose.pose.orientation
-        odom_theta = quaternion_to_yaw(odom_q.x, odom_q.y, odom_q.z, odom_q.w)
+        odom_theta = yaw_from_quaternion(odom_q)
 
         delta_theta = theta_map - odom_theta
 
@@ -1163,7 +1158,7 @@ class FastSLAMNode(Node):
         ox = float(odom_msg.pose.pose.position.x)
         oy = float(odom_msg.pose.pose.position.y)
         oq = odom_msg.pose.pose.orientation
-        o_yaw = quaternion_to_yaw(oq.x, oq.y, oq.z, oq.w)
+        o_yaw = yaw_from_quaternion(oq)
         c, s = math.cos(o_yaw), math.sin(o_yaw)
         xyz = np.column_stack((
             ox + local_x * c - local_y * s,

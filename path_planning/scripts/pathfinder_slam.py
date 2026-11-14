@@ -16,7 +16,7 @@ from geometry_msgs.msg import Point
 from common_msgs.msg import ConeArray
 
 from path_planning.centreline import CentrelineAlgorithm
-from path_planning.geometry import quaternion_to_yaw, to_local, to_world
+from fsai_common.geometry import to_local, to_world, yaw_from_quaternion
 from path_planning.remember_lap import RememberedLap
 from path_planning.skidpad import SkidpadPlanner
 
@@ -96,7 +96,7 @@ class CentrelineTrackPathfinder(Node):
         low-pass filtered and the car is placed in the map with smooth odometry on top of it.
         """
         q = msg.pose.orientation
-        slam = (msg.pose.position.x, msg.pose.position.y, quaternion_to_yaw(q.x, q.y, q.z, q.w))
+        slam = (msg.pose.position.x, msg.pose.position.y, yaw_from_quaternion(q))
         t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         odom = self.odom_pose_at(msg.header.stamp)
         if odom is None:
@@ -138,7 +138,7 @@ class CentrelineTrackPathfinder(Node):
 
     def odom_callback(self, msg):
         q = msg.pose.pose.orientation
-        yaw = quaternion_to_yaw(q.x, q.y, q.z, q.w)
+        yaw = yaw_from_quaternion(q)
         self.odom_pose = (
             msg.pose.pose.position.x,
             msg.pose.pose.position.y,

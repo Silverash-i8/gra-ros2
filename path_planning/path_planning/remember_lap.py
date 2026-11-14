@@ -8,7 +8,7 @@ import math
 
 import numpy as np
 
-from path_planning.geometry import to_local
+from fsai_common.geometry import to_local
 
 
 class RememberedLap:

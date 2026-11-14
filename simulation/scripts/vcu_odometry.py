@@ -18,15 +18,13 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
 from tf2_ros import TransformBroadcaster
 
+from fsai_common.geometry import yaw_from_quaternion
+
 from fsai_api.msg import VCU2AI
 
 
 def yaw_quat(yaw):
     return 0.0, 0.0, math.sin(yaw / 2.0), math.cos(yaw / 2.0)
-
-
-def yaw_from_quaternion(q):
-    return math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
 
 
 class VcuOdometry(Node):

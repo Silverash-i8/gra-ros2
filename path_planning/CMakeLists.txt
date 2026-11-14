@@ -19,7 +19,7 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 # Install Python scripts only (no module)
-# planner logic without ROS: path_planning.centreline, .skidpad, .remember_lap, .geometry
+# planner logic without ROS: path_planning.centreline, .skidpad, .remember_lap
 ament_python_install_package(${PROJECT_NAME})
 
 install(PROGRAMS

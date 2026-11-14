@@ -23,7 +23,7 @@ import rclpy.executors
 from rclpy.node import Node
 
 from control.path_processor import PathProcessor, PathProcessorConfig
-from control.geometry import to_local, to_world, yaw_from_quaternion
+from fsai_common.geometry import to_local, to_world, yaw_from_quaternion
 
 # ROS Messages
 from nav_msgs.msg import Path, Odometry

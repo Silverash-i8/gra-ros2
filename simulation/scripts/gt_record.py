@@ -20,13 +20,11 @@ from rclpy.parameter import Parameter
 from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import String, UInt16
 
+from fsai_common.geometry import yaw_from_quaternion
+
 
 def stamp_s(header):
     return header.stamp.sec + header.stamp.nanosec * 1e-9
-
-
-def yaw_of(q):
-    return math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
 
 
 class Recorder(Node):
@@ -54,7 +52,7 @@ class Recorder(Node):
 
     def on_slam(self, msg):
         p = msg.pose.position
-        self.slam.write(f'{stamp_s(msg.header):.3f},{p.x:.3f},{p.y:.3f},{yaw_of(msg.pose.orientation):.4f}\n')
+        self.slam.write(f'{stamp_s(msg.header):.3f},{p.x:.3f},{p.y:.3f},{yaw_from_quaternion(msg.pose.orientation):.4f}\n')
         self.slam.flush()
 
     def on_ground_truth(self, msg):
@@ -62,7 +60,7 @@ class Recorder(Node):
         roll = math.atan2(2 * (q.w * q.x + q.y * q.z), 1 - 2 * (q.x * q.x + q.y * q.y))
         pitch = math.asin(max(-1.0, min(1.0, 2 * (q.w * q.y - q.z * q.x))))
         self.gt.write(f'{stamp_s(msg.header):.3f},{p.x:.3f},{p.y:.3f},{math.hypot(v.x, v.y):.3f},{self.laps},{self.state},'
-                      f'{p.z:.3f},{roll:.3f},{pitch:.3f},{self.odom_v:.2f},{yaw_of(q):.3f}\n')
+                      f'{p.z:.3f},{roll:.3f},{pitch:.3f},{self.odom_v:.2f},{yaw_from_quaternion(q):.3f}\n')
         self.rows += 1
         if self.rows % 20 == 0:
             self.gt.flush()

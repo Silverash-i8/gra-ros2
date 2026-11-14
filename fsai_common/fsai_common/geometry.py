@@ -1,4 +1,4 @@
-"""Planar geometry shared by the nodes of this package (no ROS imports: usable in plain tests)."""
+"""Planar geometry shared by the FSAI packages (no ROS imports: usable in plain tests)."""
 import math
 
 import numpy as np

@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 
-from control.geometry import to_local, to_world, yaw_from_quaternion
+from fsai_common.geometry import to_local, to_world, yaw_from_quaternion
 
 
 def test_yaw_from_quaternion_tuple_and_message():
