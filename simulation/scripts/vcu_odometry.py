@@ -53,6 +53,9 @@ class VcuOdometry(Node):
         self.speed_tc = float(self.declare_parameter('speed_tc', 0.3).value)              # s
         self.slip_threshold = float(self.declare_parameter('slip_threshold', 0.5).value)  # m/s
         self.slip_tc = float(self.declare_parameter('slip_tc', 5.0).value)                # s
+        self.max_imu_gap = float(self.declare_parameter('max_imu_gap', 0.1).value)          # s; longer: no IMU integration
+        self.locked_min_speed = float(self.declare_parameter('locked_min_speed', 0.5).value)  # m/s; above: wheels at 0 = locked
+        self.locked_tc = float(self.declare_parameter('locked_tc', 2.0).value)                # s; pull to 0 while locked
         self.publish_tf = bool(self.declare_parameter('publish_tf', True).value)
         rate = float(self.declare_parameter('rate', 100.0).value)
 
@@ -107,7 +110,7 @@ class VcuOdometry(Node):
         raw = msg.angular_velocity.z
         # Gyro bias: learnt while the car stands still (wheels at 0), as cars do before the start.
         # Uncorrected, a MEMS bias of ~0.01 deg/s turned into several degrees of heading per run.
-        if abs(self.v) < 1e-3:
+        if abs(self.v) < 1e-3 and self.v_fused < 1e-3:
             self.bias_sum += raw
             self.ax_sum += msg.linear_acceleration.x
             self.bias_n += 1
@@ -135,8 +138,26 @@ class VcuOdometry(Node):
         self.stamp = msg.header.stamp
 
     def update_speed(self, ax, dt):
+        if dt > self.max_imu_gap:
+            # One IMU sample cannot stand for a long gap: integrating a single braking sample over a
+            # 1 s stall of the data took 3.5 m/s off the fused speed, the slip logic then distrusted
+            # the (correct) wheels for seconds and SLAM ended 7-11 m off. Take the wheels as they are.
+            self.get_logger().warn(f'IMU gap of {dt:.2f} s: speed taken from the wheels', throttle_duration_sec=5.0)
+            self.v_fused, self.slipping = self.v, False
+            return
         if abs(self.v) < 1e-3:
-            self.v_fused, self.slipping = 0.0, False   # wheels stopped: standing (or locked at ~0)
+            if self.v_fused > self.locked_min_speed:
+                # wheels read 0 but the car was moving a moment ago: locked wheels, the car slides.
+                # Carry the speed on with the IMU; the pull towards 0 (locked_tc) ends it if the car
+                # has in fact stopped (accelerometer bias would otherwise keep a speed for ever).
+                self.v_fused += (ax + self.w * self.w * self.rear_axle_offset) * dt
+                self.v_fused = max(0.0, self.v_fused * math.exp(-dt / self.locked_tc))
+                if not self.slipping:
+                    self.get_logger().info(f'wheels locked at {self.v_fused:.1f} m/s: speed from the IMU',
+                                           throttle_duration_sec=1.0)
+                self.slipping = True
+                return
+            self.v_fused, self.slipping = 0.0, False   # wheels stopped: standing
             return
         # the IMU sits on base_link, which moves sideways at w * L: d(v_rear)/dt = ax + w^2 L
         self.v_fused += (ax + self.w * self.w * self.rear_axle_offset) * dt
